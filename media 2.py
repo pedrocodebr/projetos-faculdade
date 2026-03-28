@@ -1,4 +1,7 @@
 nome = input("Digite o nome do aluno: ")
+while not nome.strip():
+    nome = input("Nome não pode estar vazio. Digite novamente: ")
+
 matriculado = input("O aluno está matriculado? (s/n): ").lower()
 
 if matriculado not in ["s", "sim"]:
