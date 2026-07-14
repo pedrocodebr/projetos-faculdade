@@ -1,4 +1,4 @@
-
+git checkout <hash-do-commit> -- sistema_readme
 
 idade = int(input("Digite a idade do usuário: "))
 matriculado = input("O usuário está matriculado? (sim/nao): ").strip().lower()
