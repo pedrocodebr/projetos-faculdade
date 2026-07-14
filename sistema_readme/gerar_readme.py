@@ -1,21 +1,20 @@
 """
-gerar_readme_ollama_v2.py
+gerar_readme_ollama_v3.py
 
 Gera README.md profissional para cada projeto dentro de uma pasta raiz,
 usando um modelo de IA rodando LOCALMENTE via Ollama (100% gratuito, sem
 limite de requisições).
 
 Novidades desta versão:
-  - Renomeia automaticamente pastas com nomes genéricos (ex: "att 5",
-    "at8-python", "atividade1-python") para um nome condizente com o
-    projeto, ANTES de gerar o README.
-  - README segue um padrão mais profissional e completo (emojis, seções
-    de objetivo, funcionalidades, conceitos praticados, estrutura do
-    projeto, aprendizados, autor, etc.)
+  - Corrige acentos ao gerar nomes de pasta (ex: "números" agora vira
+    corretamente "numeros", não "nmeros").
+  - Gera/atualiza um README.md na RAIZ do repositório, com um índice
+    listando todos os projetos e um link para cada um.
 """
 
 import os
 import re
+import unicodedata
 import requests
 
 # ============ CONFIGURAÇÕES (AJUSTE AQUI) ============
@@ -28,6 +27,9 @@ MODELO = "qwen2.5-coder:7b"
 AUTOR_NOME = "Pedro Leonardo Piancó Tenório"
 CURSO = "Análise e Desenvolvimento de Sistemas (ADS)"
 
+# Link do repositório no GitHub (usado para montar os links no README raiz)
+GITHUB_REPO_URL = "https://github.com/pedrocodebr/projetos-faculdade"
+
 EXTENSOES_CODIGO = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".cs",
     ".html", ".css", ".ipynb", ".sql", ".php", ".rb", ".go"
@@ -37,12 +39,25 @@ IGNORAR_PASTAS = {".git", "node_modules", "__pycache__", "venv", ".venv", "dist"
 
 LIMITE_CARACTERES_CODIGO = 15000
 
-# Padrão que identifica pastas com nome genérico (ex: "att 5", "at8-python",
-# "atividade1-python", "att5"). Se o nome da pasta bater com isso, ela é
-# candidata a ser renomeada.
-PADRAO_NOME_GENERICO = re.compile(r"^(att?|atividade)[\s\-]?\d*(-python)?$", re.IGNORECASE)
+PADRAO_NOME_GENERICO = re.compile(r"^(att?|atividade|projeto)[\s\-]?\d*(-python|\s*faculdade)?$", re.IGNORECASE)
 
 # =======================================================
+
+
+def remover_acentos(texto):
+    """Remove acentos preservando a letra base (ex: 'número' -> 'numero')."""
+    nfkd = unicodedata.normalize("NFKD", texto)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def slugificar(texto):
+    """Converte texto em um slug seguro para nome de pasta (minúsculo, hífens, sem acentos)."""
+    texto = remover_acentos(texto)
+    texto = texto.lower().strip()
+    texto = re.sub(r"[^a-z0-9\-\s]", "", texto)
+    texto = re.sub(r"[\s_]+", "-", texto)
+    texto = re.sub(r"-+", "-", texto).strip("-")
+    return texto
 
 
 def ler_codigo_projeto(caminho_pasta):
@@ -74,20 +89,19 @@ def perguntar_ollama(prompt):
 
 def sugerir_nome_pasta(codigo, nome_atual):
     prompt = f"""Sugira um nome de pasta curto e descritivo (em minúsculas, palavras separadas por hífen,
-formato "nome-do-projeto-python", sem espaços, sem acentos) para um projeto Python que atualmente
-se chama "{nome_atual}" e tem este código:
+formato "nome-do-projeto-python", sem espaços, pode ter acentos que serão removidos depois) para um
+projeto Python que atualmente se chama "{nome_atual}" e tem este código:
 
 {codigo[:3000]}
 
 Responda APENAS com o nome da pasta, nada mais, sem explicações. Exemplo de resposta válida: sistema-media-escolar-python"""
 
     resposta = perguntar_ollama(prompt).strip().splitlines()[0]
-    nome_limpo = re.sub(r"[^a-z0-9\-]", "", resposta.lower().replace(" ", "-"))
+    nome_limpo = slugificar(resposta)
     return nome_limpo or None
 
 
 def renomear_pastas_genericas():
-    """Renomeia pastas com nomes genéricos (att, at8-python, atividade1...) para nomes descritivos."""
     itens = os.listdir(DIRETORIO_RAIZ)
     candidatas = [
         i for i in itens
@@ -102,7 +116,7 @@ def renomear_pastas_genericas():
 
     print(f"🏷️  {len(candidatas)} pasta(s) com nome genérico encontrada(s). Renomeando...\n")
 
-    mapa_renomeacao = {}  # nome_antigo -> nome_novo
+    mapa_renomeacao = {}
 
     for nome_atual in candidatas:
         caminho_atual = os.path.join(DIRETORIO_RAIZ, nome_atual)
@@ -189,6 +203,73 @@ Código do projeto (analise para extrair nomes de arquivos, bibliotecas e lógic
 Responda APENAS com o conteúdo do README.md em markdown puro, sem comentários fora do markdown, sem envolver tudo em blocos ```markdown."""
 
     return perguntar_ollama(prompt)
+
+
+def extrair_descricao_curta(caminho_readme):
+    """Pega a primeira frase da seção 'Descrição' de um README já gerado, para usar no índice raiz."""
+    try:
+        with open(caminho_readme, "r", encoding="utf-8") as f:
+            conteudo = f.read()
+        match = re.search(r"##\s*📖?\s*Descri[cç][aã]o\s*\n+(.+)", conteudo)
+        if match:
+            frase = match.group(1).strip().split("\n")[0]
+            frase = re.sub(r"[*_`]", "", frase)
+            return frase[:150]
+    except Exception:
+        pass
+    return ""
+
+
+def gerar_readme_raiz():
+    """Gera/atualiza o README.md da raiz do repositório com um índice de todos os projetos."""
+    itens = sorted(os.listdir(DIRETORIO_RAIZ))
+    pastas = [
+        i for i in itens
+        if os.path.isdir(os.path.join(DIRETORIO_RAIZ, i)) and i not in IGNORAR_PASTAS
+    ]
+
+    linhas = [
+        "# Projetos da Faculdade",
+        "",
+        f"Este repositório reúne os projetos e exercícios desenvolvidos durante minha graduação em **{CURSO}**.",
+        "",
+        "Cada pasta contém um projeto independente, com seu próprio README explicando a descrição, objetivo, "
+        "conceitos praticados e como executar.",
+        "",
+        "## 📂 Projetos",
+        "",
+    ]
+
+    for nome_pasta in pastas:
+        caminho_readme_projeto = os.path.join(DIRETORIO_RAIZ, nome_pasta, "README.md")
+        link = f"{GITHUB_REPO_URL}/tree/main/{nome_pasta}" if GITHUB_REPO_URL else nome_pasta
+
+        if os.path.exists(caminho_readme_projeto):
+            descricao = extrair_descricao_curta(caminho_readme_projeto)
+            if descricao:
+                linhas.append(f"- **[{nome_pasta}]({link})** — {descricao}")
+            else:
+                linhas.append(f"- **[{nome_pasta}]({link})**")
+        else:
+            linhas.append(f"- **[{nome_pasta}]({link})** — _(sem README ainda)_")
+
+    linhas += [
+        "",
+        "## 🛠️ Tecnologias",
+        "",
+        "- Python",
+        "",
+        "## 👨‍💻 Autor",
+        "",
+        f"**{AUTOR_NOME}**",
+        "",
+    ]
+
+    caminho_readme_raiz = os.path.join(DIRETORIO_RAIZ, "README.md")
+    with open(caminho_readme_raiz, "w", encoding="utf-8") as f:
+        f.write("\n".join(linhas))
+
+    print(f"✅ README.md da raiz atualizado com {len(pastas)} projeto(s) listado(s).\n")
 
 
 def processar_pastas_existentes():
@@ -291,11 +372,15 @@ if __name__ == "__main__":
     print("--- Etapa 1: Renomeando pastas com nomes genéricos ---\n")
     renomear_pastas_genericas()
 
-    print("--- Etapa 2: Gerando READMEs ---\n")
+    print("--- Etapa 2: Gerando READMEs dos projetos ---\n")
     proc_pastas, ignoradas = processar_pastas_existentes()
     proc_soltos = processar_arquivos_soltos()
+
+    print("--- Etapa 3: Atualizando README raiz (índice de projetos) ---\n")
+    gerar_readme_raiz()
 
     print("\n🏁 Concluído!")
     print(f"   - {proc_pastas} README(s) gerados em pastas existentes")
     print(f"   - {ignoradas} pasta(s) ignoradas (já tinham README)")
     print(f"   - {proc_soltos} arquivo(s) solto(s) organizados em novas pastas")
+    print("   - README.md da raiz atualizado com índice de todos os projetos")
