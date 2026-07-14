@@ -81,3 +81,4 @@ Cada pasta contém um projeto independente, com seu próprio README explicando a
 ## 👨‍💻 Autor
 
 **Pedro Leonardo Piancó Tenório**
+
