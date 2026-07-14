@@ -3,4 +3,4 @@ def soma_n(n):
         return 1
     return n + soma_n(n - 1)
 
-print(soma_n(6))
+print(soma_n(6)) 
