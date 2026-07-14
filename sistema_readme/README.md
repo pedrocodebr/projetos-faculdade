@@ -1,6 +1,6 @@
-# Projetos da Faculdade
+﻿# Projetos da Faculdade
 
-Este repositório reúne os projetos e exercícios desenvolvidos durante minha graduação em **Engenharia de Software**.
+Este repositório reúne os projetos e exercícios desenvolvidos durante minha graduação em **Análise e Desenvolvimento de Sistemas**.
 
 Cada pasta contém um projeto independente, com seu próprio README explicando a descrição, objetivo, conceitos praticados e como executar.
 
@@ -18,4 +18,4 @@ Cada pasta contém um projeto independente, com seu próprio README explicando a
 
 ## 👨‍💻 Autor
 
-**Pedro Leonardo Pianc� Ten�rio**
+**Pedro Leonardo Pianc� Ten�rio**
